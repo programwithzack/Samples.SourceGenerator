@@ -2,7 +2,7 @@
 
 namespace Services
 {
-    public interface IValuesService : IDependencyResolver
+    public interface IValuesService : IScopedDependencyResolver
     {
         int Age();
     }

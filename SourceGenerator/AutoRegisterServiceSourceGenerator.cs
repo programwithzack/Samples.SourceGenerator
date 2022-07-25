@@ -11,6 +11,14 @@ namespace SourceGenerator
     [Generator]
     public class AutoRegisterServiceSourceGenerator : ISourceGenerator
     {
+
+        private readonly Dictionary<string, string> _actions = new Dictionary<string, string>
+        {
+            { "Abstractions.ISingletonDependencyResolver", "AddSingleton" },
+            { "Abstractions.ITransientDependencyResolver", "AddTransient" },
+            { "Abstractions.IScopedDependencyResolver", "AddScoped" }
+        };
+
         /// <inheritdoc/>
         public void Initialize(GeneratorInitializationContext context)
         {
@@ -38,30 +46,41 @@ namespace SourceGenerator
 
             string dependencyResolverName = "Abstractions.IDependencyResolver";
             var types = GetAllTypes(context.Compilation);
-            var neededTypes = types.Where(t =>
+            var neededTypes = new Dictionary<INamedTypeSymbol, string>();
+            foreach (var type in types)
             {
-                if (!t.Interfaces.IsEmpty && t.TypeKind == TypeKind.Class)
+                if (!type.Interfaces.IsEmpty && type.TypeKind == TypeKind.Class)
                 {
-                    if (t.AllInterfaces.All(i => i.ToDisplayString() != dependencyResolverName))
-                        return false;
+                    if (type.AllInterfaces.All(i => i.ToDisplayString() != dependencyResolverName))
+                        continue;
 
-                    var @interface = t.Interfaces.FirstOrDefault(i => i.Name == $"I{t.Name}");
+                    var @interface = type.Interfaces.FirstOrDefault(i => i.Name == $"I{type.Name}");
                     if (@interface == null)
-                        return false;
+                        continue;
 
                     string interfaceNamespace = @interface.ContainingNamespace.ToString();
                     if (string.IsNullOrEmpty(interfaceNamespace))
-                        return false;
+                        continue;
 
-                    string classNamespace = t.ContainingNamespace.ToString();
-                    namespaces.Add(t.ContainingNamespace.ToString());
+                    string classNamespace = type.ContainingNamespace.ToString();
+                    namespaces.Add(type.ContainingNamespace.ToString());
+
                     if (classNamespace != interfaceNamespace)
                         namespaces.Add(interfaceNamespace);
 
-                    return true;
+                    neededTypes.Add(type, _actions.Values.First());
+                    foreach (var name in _actions.Keys)
+                    {
+                        if (type.AllInterfaces.Any(i => i.ToDisplayString() == name))
+                        {
+                            neededTypes[type] = _actions[name];
+                            break;
+                        }
+                    }
+
                 }
-                return false;
-            }).ToList();
+
+            }
 
             namespaces.Distinct().OrderBy(n => n.ToString()).ToList().ForEach(n => stringBuilder.Append($"    using {n};\n"));
 
@@ -79,9 +98,9 @@ namespace SourceGenerator
                 "        static partial void RegisterService(IServiceCollection services)\n" +
                 "        {\n");
 
-            foreach (var type in neededTypes)
+            foreach (var type in neededTypes.Keys)
             {
-                stringBuilder.Append($"            services.AddScoped<I{type.Name}, {type.Name}>();");
+                stringBuilder.Append($"            services.{neededTypes[type]}<I{type.Name}, {type.Name}>();");
                 stringBuilder.AppendLine();
             }
 

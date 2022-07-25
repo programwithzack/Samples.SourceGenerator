@@ -2,7 +2,7 @@
 
 namespace Services
 {
-    public interface IUserService : IDependencyResolver
+    public interface IUserService : ISingletonDependencyResolver
     {
         string Hello();
 

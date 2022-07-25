@@ -3,7 +3,7 @@ using Models;
 
 namespace Services
 {
-    public interface IDataService : IDependencyResolver
+    public interface IDataService : ITransientDependencyResolver
     {
         IEnumerable<WeatherForecast> WeatherForecast(int days);
     }
